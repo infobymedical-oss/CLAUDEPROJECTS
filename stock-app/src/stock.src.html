@@ -91,7 +91,7 @@
         <label>Categoría <input name="categoria" list="categorias" maxlength="60"></label>
         <label>Cantidad * <input name="cantidad" type="number" min="0" step="any" required value="0"></label>
         <label>Unidad <input name="unidad" list="unidades" maxlength="20" placeholder="uds, kg, cajas…"></label>
-        <label>Precio unitario (€) <input name="precio" type="number" min="0" step="0.01" placeholder="0,00"></label>
+        <label>Precio unitario ($U) <input name="precio" type="number" min="0" step="0.01" placeholder="0,00"></label>
         <label>Stock mínimo <input name="minimo" type="number" min="0" step="any" placeholder="Aviso si baja de…"></label>
         <label>Ubicación <input name="ubicacion" maxlength="60"></label>
       </div>
@@ -110,7 +110,7 @@
     <div class="stats">
       <div><b id="stArticulos">0</b>artículos</div>
       <div><b id="stUnidades">0</b>unidades totales</div>
-      <div><b id="stValor">0,00 €</b>valor total</div>
+      <div><b id="stValor">$ 0,00</b>valor total</div>
       <div><b id="stBajo">0</b>con stock bajo</div>
     </div>
     <div class="toolbar">
@@ -163,8 +163,8 @@
   }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function num(v) { var n = parseFloat(v); return isFinite(n) ? n : 0; }
-  function money(n) { return num(n).toLocaleString("es-ES", { style: "currency", currency: "EUR" }); }
-  function fmt(n) { return num(n).toLocaleString("es-ES", { maximumFractionDigits: 3 }); }
+  function money(n) { return num(n).toLocaleString("es-UY", { style: "currency", currency: "UYU" }); }
+  function fmt(n) { return num(n).toLocaleString("es-UY", { maximumFractionDigits: 3 }); }
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -322,7 +322,7 @@
     if (!jsPDF) { window.print(); return; }
     var doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     var now = new Date();
-    var fecha = now.toLocaleDateString("es-ES") + " " + now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+    var fecha = now.toLocaleDateString("es-UY") + " " + now.toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" });
     var filtrado = list.length !== items.length;
 
     doc.setFontSize(18); doc.text("Informe de stock", 14, 16);
