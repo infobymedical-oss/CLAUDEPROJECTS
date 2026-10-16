@@ -2,6 +2,14 @@
 
 Programa sencillo para llevar un inventario interno de artículos y sacar el listado en PDF.
 
+Hay dos versiones:
+
+- **Compartida con Google Sheets** (recomendada para la empresa): varias personas, desde iPhone,
+  Android o computadora, ven y modifican el mismo stock. Instalación en
+  [`google-sheets/INSTRUCCIONES.md`](google-sheets/INSTRUCCIONES.md).
+- **Sin conexión** (`StockApp.html`): un solo archivo, los datos quedan en el navegador de cada equipo.
+  Se describe a continuación.
+
 ## Cómo usarlo
 
 1. Descarga el archivo **`StockApp.html`**.

@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #1d2330; --muted: #6b7280;
+    --border: #e2e5ea; --accent: #2563eb; --accent-text: #ffffff;
+    --danger: #dc2626; --ok: #16a34a; --warn: #d97706;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151c; --card: #1b1f29; --text: #e6e8ee; --muted: #9aa1ae;
+      --border: #2c3240; --accent: #4f8bff; --accent-text: #ffffff;
+      --danger: #f05252; --ok: #34c472; --warn: #f0a33a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    justify-content: space-between; max-width: 1100px; margin: 0 auto; }
+  h1 { margin: 0; font-size: 22px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 0 16px 40px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; margin-bottom: 16px; }
+  .card h2 { margin: 0 0 12px; font-size: 16px; }
+  .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  input, select, textarea { font: inherit; color: var(--text); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; width: 100%; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  button { font: inherit; cursor: pointer; border-radius: 7px; padding: 8px 14px;
+    border: 1px solid var(--border); background: var(--card); color: var(--text); }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button.danger { color: var(--danger); }
+  button.small { padding: 4px 9px; font-size: 13px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .toolbar input { flex: 1 1 220px; width: auto; }
+  .toolbar select { width: auto; }
+  .stats { display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 12px; color: var(--muted); }
+  .stats b { color: var(--text); font-size: 18px; display: block; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted);
+    cursor: pointer; user-select: none; white-space: nowrap; }
+  td.num, th.num { text-align: right; }
+  .qty { display: inline-flex; align-items: center; gap: 6px; }
+  .low { color: var(--warn); font-weight: 600; }
+  .zero { color: var(--danger); font-weight: 600; }
+  .row-actions { white-space: nowrap; text-align: right; }
+  .empty { text-align: center; color: var(--muted); padding: 30px 0; }
+  .hidden { display: none !important; }
+  .banner { max-width: 1100px; margin: 0 auto 12px; padding: 10px 14px; border-radius: 8px;
+    border: 1px solid var(--warn); color: var(--text); background: var(--card); }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex;
+    align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+  .modal { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px; max-width: 420px; width: 100%; }
+  .modal p { margin: 0 0 14px; }
+  .modal .actions { justify-content: flex-end; margin: 0; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 8px;
+    opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  @media (max-width: 640px) {
+    thead { display: none; }
+    tr { display: block; border-bottom: 1px solid var(--border); padding: 8px 0; }
+    td { display: flex; justify-content: space-between; border: 0; padding: 4px 0; }
+    td::before { content: attr(data-label); color: var(--muted); font-size: 13px; }
+    td.num { text-align: right; }
+    .row-actions { justify-content: flex-end; gap: 6px; }
+    .row-actions::before { content: none; }
+  }
+  .status { font-size: 13px; color: var(--muted); }
+  .status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ok); margin-right: 5px; vertical-align: middle; }
+  .status.busy .dot { background: var(--warn); }
+  .status.err .dot { background: var(--danger); }
+  .user-chip { font-size: 13px; color: var(--muted); }
+  .user-chip a { color: var(--accent); cursor: pointer; text-decoration: underline; }
+  button:disabled { opacity: .55; cursor: default; }
+  .modal input { margin-bottom: 14px; }
+  .modal a.primary { display: inline-block; background: var(--accent); color: var(--accent-text);
+    border-radius: 7px; padding: 8px 14px; text-decoration: none; }
+  .loading { text-align: center; color: var(--muted); padding: 30px 0; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Gestor de Stock</h1>
+    <div class="user-chip"><span id="empresa"></span> · Usuario: <b id="userName">—</b> (<a id="btnUser">cambiar</a>)</div>
+  </div>
+  <div class="actions" style="margin:0;align-items:center">
+    <span class="status busy" id="status"><span class="dot"></span><span id="statusTxt">Conectando…</span></span>
+    <button id="btnRefresh" title="Actualizar ahora">↻ Actualizar</button>
+    <button class="primary" id="btnPdf">Generar PDF</button>
+    <button id="btnImport">Importar copia</button>
+    <input type="file" id="fileImport" accept=".json,application/json" class="hidden">
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <h2 id="formTitle">Nuevo artículo</h2>
+    <form id="form" autocomplete="off">
+      <div class="grid">
+        <label>Código / SKU <input name="codigo" maxlength="40"></label>
+        <label>Nombre * <input name="nombre" required maxlength="120"></label>
+        <label>Categoría <input name="categoria" list="categorias" maxlength="60"></label>
+        <label>Cantidad * <input name="cantidad" type="number" min="0" step="any" required value="0" inputmode="decimal"></label>
+        <label>Unidad <input name="unidad" list="unidades" maxlength="20" placeholder="uds, kg, cajas…"></label>
+        <label>Precio unitario ($U) <input name="precio" type="number" min="0" step="any" placeholder="0,00" inputmode="decimal"></label>
+        <label>Stock mínimo <input name="minimo" type="number" min="0" step="any" placeholder="Aviso si baja de…" inputmode="decimal"></label>
+        <label>Ubicación <input name="ubicacion" maxlength="60"></label>
+      </div>
+      <label style="margin-top:10px">Notas <textarea name="notas" rows="2" maxlength="500"></textarea></label>
+      <div class="actions">
+        <button type="button" class="primary" id="btnSave">Añadir artículo</button>
+        <button type="button" id="btnCancel" class="hidden">Cancelar edición</button>
+      </div>
+    </form>
+    <datalist id="categorias"></datalist>
+    <datalist id="unidades"><option value="uds"><option value="kg"><option value="g"><option value="l"><option value="m"><option value="cajas"><option value="paquetes"></datalist>
+  </section>
+
+  <section class="card">
+    <h2>Inventario</h2>
+    <div class="stats">
+      <div><b id="stArticulos">0</b>artículos</div>
+      <div><b id="stUnidades">0</b>unidades totales</div>
+      <div><b id="stValor">$ 0,00</b>valor total</div>
+      <div><b id="stBajo">0</b>con stock bajo</div>
+    </div>
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Buscar por nombre, código, categoría o ubicación…">
+      <select id="filterCat"><option value="">Todas las categorías</option></select>
+      <label style="flex-direction:row;align-items:center;gap:6px;color:var(--text);white-space:nowrap">
+        <input type="checkbox" id="onlyLow" style="width:auto"> Solo stock bajo
+      </label>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th data-sort="codigo">Código</th>
+          <th data-sort="nombre">Nombre</th>
+          <th data-sort="categoria">Categoría</th>
+          <th data-sort="ubicacion">Ubicación</th>
+          <th data-sort="cantidad" class="num">Cantidad</th>
+          <th data-sort="precio" class="num">Precio</th>
+          <th data-sort="valor" class="num">Valor</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div id="empty" class="loading">Cargando stock…</div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-bg hidden" id="modal">
+  <div class="modal" role="dialog" aria-modal="true">
+    <p id="modalMsg"></p>
+    <input id="modalInput" class="hidden">
+    <div class="actions">
+      <button type="button" id="modalNo">Cancelar</button>
+      <a id="modalLink" class="primary hidden" target="_blank" rel="noopener">Abrir PDF</a>
+      <button type="button" class="primary" id="modalYes">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var LS_USER = "stock-usuario", LS_CLAVE = "stock-clave";
+  var items = [];
+  var cfg = { empresa: "", requiereClave: false };
+  var editingId = null, editingCantidad = null;
+  var sortKey = "nombre", sortDir = 1;
+  var busy = 0, loaded = false;
+  var mem = {};
+
+  var $ = function (id) { return document.getElementById(id); };
+  var form = $("form");
+
+  // ---------- Utilidades ----------
+  function lsGet(k) { try { var v = localStorage.getItem(k); return v == null ? mem[k] : v; } catch (e) { return mem[k]; } }
+  function lsSet(k, v) { mem[k] = v; try { localStorage.setItem(k, v); } catch (e) {} }
+  function num(v) { var n = parseFloat(v); return isFinite(n) ? n : 0; }
+  function money(n) { return num(n).toLocaleString("es-UY", { style: "currency", currency: "UYU" }); }
+  function fmt(n) { return num(n).toLocaleString("es-UY", { maximumFractionDigits: 3 }); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function isLow(it) { return it.minimo !== "" && it.minimo != null && num(it.cantidad) <= num(it.minimo); }
+  function toast(msg) {
+    var t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove("show"); }, 2500);
+  }
+  function setStatus(kind, txt) {
+    $("status").className = "status " + kind; $("statusTxt").textContent = txt;
+  }
+
+  // Diálogo propio (confirm/prompt no funcionan bien dentro de Google).
+  function dialog(opts) {
+    $("modalMsg").textContent = opts.msg;
+    var inp = $("modalInput");
+    inp.classList.toggle("hidden", !opts.input);
+    inp.type = opts.password ? "password" : "text";
+    inp.value = opts.value || "";
+    inp.placeholder = opts.placeholder || "";
+    $("modalNo").classList.toggle("hidden", !!opts.noCancel);
+    $("modalLink").classList.toggle("hidden", !opts.link);
+    if (opts.link) $("modalLink").href = opts.link;
+    $("modalYes").textContent = opts.okText || "Aceptar";
+    $("modal").classList.remove("hidden");
+    (opts.input ? inp : $("modalYes")).focus();
+    function close(ok) {
+      if (ok && opts.input && opts.required && !inp.value.trim()) { inp.focus(); return; }
+      $("modal").classList.add("hidden");
+      $("modalYes").onclick = $("modalNo").onclick = inp.onkeydown = null;
+      if (ok && opts.onOk) opts.onOk(inp.value.trim());
+      if (!ok && opts.onCancel) opts.onCancel();
+    }
+    $("modalYes").onclick = function () { close(true); };
+    $("modalNo").onclick = function () { close(false); };
+    inp.onkeydown = function (e) { if (e.key === "Enter") { e.preventDefault(); close(true); } };
+  }
+  function ask(msg, onYes) { dialog({ msg: msg, onOk: onYes }); }
+  function modalOpen() { return !$("modal").classList.contains("hidden"); }
+
+  // ---------- Servidor ----------
+  function call(fn, args, onOk, opts) {
+    opts = opts || {};
+    busy++; setStatus("busy", opts.silent ? "Sincronizando…" : "Guardando…");
+    if (!opts.silent) setButtons(false);
+    var run = google.script.run
+      .withSuccessHandler(function (res) {
+        busy--; if (!opts.silent) setButtons(true);
+        setStatus("ok", "Sincronizado " + new Date().toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" }));
+        onOk(res);
+      })
+      .withFailureHandler(function (err) {
+        busy--; if (!opts.silent) setButtons(true);
+        var msg = (err && err.message) || String(err);
+        if (msg.indexOf("CLAVE_INCORRECTA") !== -1) {
+          setStatus("err", "Falta la clave");
+          pedirClave(true, function () { call(fn, args, onOk, opts); });
+          return;
+        }
+        setStatus("err", "Sin conexión");
+        if (!opts.silent) dialog({ msg: "No se pudo completar: " + msg, noCancel: true });
+      });
+    // La clave se lee en cada intento, así un reintento usa la clave recién escrita.
+    run[fn].apply(run, [clave()].concat(args));
+  }
+  function setButtons(on) {
+    ["btnSave", "btnPdf", "btnImport", "btnRefresh"].forEach(function (id) { $(id).disabled = !on; });
+    document.querySelectorAll("#tbody button").forEach(function (b) { b.disabled = !on; });
+  }
+  function usuario() { return lsGet(LS_USER) || ""; }
+  function clave() { return lsGet(LS_CLAVE) || ""; }
+  function setItems(list) { items = list || []; loaded = true; render(); }
+  function refrescar(silent) {
+    call("api_listar", [], setItems, { silent: silent });
+  }
+
+  function pedirUsuario(cb) {
+    dialog({
+      msg: "¿Cómo te llamas? Tu nombre queda registrado en cada cambio que hagas.",
+      input: true, required: true, value: usuario(), placeholder: "Tu nombre", noCancel: !usuario(),
+      onOk: function (v) { lsSet(LS_USER, v); $("userName").textContent = v; if (cb) cb(); }
+    });
+  }
+  function pedirClave(incorrecta, cb) {
+    dialog({
+      msg: incorrecta && clave() ? "Clave incorrecta. Vuelve a escribirla:" : "Escribe la clave de acceso al stock:",
+      input: true, password: true, required: true, noCancel: true,
+      onOk: function (v) { lsSet(LS_CLAVE, v); if (cb) cb(); }
+    });
+  }
+
+  // ---------- Vista ----------
+  function visibleItems() {
+    var q = $("search").value.trim().toLowerCase();
+    var cat = $("filterCat").value;
+    var onlyLow = $("onlyLow").checked;
+    return items.filter(function (it) {
+      if (cat && it.categoria !== cat) return false;
+      if (onlyLow && !isLow(it)) return false;
+      if (!q) return true;
+      return [it.codigo, it.nombre, it.categoria, it.ubicacion, it.notas]
+        .join(" ").toLowerCase().indexOf(q) !== -1;
+    }).sort(function (a, b) {
+      var va, vb;
+      if (sortKey === "valor") { va = num(a.cantidad) * num(a.precio); vb = num(b.cantidad) * num(b.precio); }
+      else if (sortKey === "cantidad" || sortKey === "precio") { va = num(a[sortKey]); vb = num(b[sortKey]); }
+      else { return sortDir * String(a[sortKey] || "").localeCompare(String(b[sortKey] || ""), "es", { numeric: true }); }
+      return sortDir * (va - vb);
+    });
+  }
+
+  function render() {
+    var list = visibleItems();
+    $("tbody").innerHTML = list.map(function (it) {
+      var cls = num(it.cantidad) <= 0 ? "zero" : (isLow(it) ? "low" : "");
+      return '<tr data-id="' + esc(it.id) + '">' +
+        '<td data-label="Código">' + esc(it.codigo) + '</td>' +
+        '<td data-label="Nombre"><b>' + esc(it.nombre) + '</b>' +
+          (it.notas ? '<div style="color:var(--muted);font-size:12px">' + esc(it.notas) + '</div>' : '') + '</td>' +
+        '<td data-label="Categoría">' + esc(it.categoria) + '</td>' +
+        '<td data-label="Ubicación">' + esc(it.ubicacion) + '</td>' +
+        '<td data-label="Cantidad" class="num"><span class="qty">' +
+          '<button class="small" data-act="dec" title="Restar">−</button>' +
+          '<span class="' + cls + '">' + fmt(it.cantidad) + ' ' + esc(it.unidad) + '</span>' +
+          '<button class="small" data-act="inc" title="Sumar">+</button></span></td>' +
+        '<td data-label="Precio" class="num">' + (it.precio !== "" ? money(it.precio) : "") + '</td>' +
+        '<td data-label="Valor" class="num">' + money(num(it.cantidad) * num(it.precio)) + '</td>' +
+        '<td class="row-actions">' +
+          '<button class="small" data-act="move" title="Entrada o salida de varias unidades">±</button> ' +
+          '<button class="small" data-act="edit">Editar</button> ' +
+          '<button class="small danger" data-act="del">Eliminar</button></td>' +
+        '</tr>';
+    }).join("");
+    var empty = $("empty");
+    empty.classList.toggle("hidden", loaded && list.length > 0);
+    empty.textContent = !loaded ? "Cargando stock…" : (items.length
+      ? "Ningún artículo coincide con la búsqueda."
+      : "Todavía no hay artículos. Añade el primero con el formulario de arriba.");
+
+    var totalU = 0, totalV = 0, low = 0;
+    items.forEach(function (it) {
+      totalU += num(it.cantidad); totalV += num(it.cantidad) * num(it.precio); if (isLow(it)) low++;
+    });
+    $("stArticulos").textContent = items.length;
+    $("stUnidades").textContent = fmt(totalU);
+    $("stValor").textContent = money(totalV);
+    $("stBajo").textContent = low;
+
+    var cats = Array.from(new Set(items.map(function (i) { return i.categoria; }).filter(Boolean))).sort();
+    var sel = $("filterCat"), cur = sel.value;
+    sel.innerHTML = '<option value="">Todas las categorías</option>' +
+      cats.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join("");
+    sel.value = cats.indexOf(cur) !== -1 ? cur : "";
+    $("categorias").innerHTML = cats.map(function (c) { return '<option value="' + esc(c) + '">'; }).join("");
+
+    document.querySelectorAll("th[data-sort]").forEach(function (th) {
+      var base = th.textContent.replace(/ [▲▼]$/, "");
+      th.textContent = base + (th.dataset.sort === sortKey ? (sortDir > 0 ? " ▲" : " ▼") : "");
+    });
+  }
+
+  function resetForm() {
+    form.reset(); editingId = null; editingCantidad = null;
+    $("formTitle").textContent = "Nuevo artículo";
+    $("btnSave").textContent = "Añadir artículo";
+    $("btnCancel").classList.add("hidden");
+  }
+
+  // ---------- Acciones ----------
+  form.addEventListener("submit", function (e) { e.preventDefault(); saveItem(); });
+  $("btnSave").addEventListener("click", saveItem);
+  form.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); saveItem(); }
+  });
+
+  function saveItem() {
+    if ($("btnSave").disabled) return;
+    if (!form.reportValidity()) return;
+    var fd = new FormData(form), data = {};
+    ["codigo", "nombre", "categoria", "cantidad", "unidad", "precio", "minimo", "ubicacion", "notas"]
+      .forEach(function (k) { data[k] = String(fd.get(k) || "").trim(); });
+    if (!data.nombre) { form.elements.nombre.focus(); toast("Escribe el nombre del artículo"); return; }
+    if (editingId) { data.id = editingId; data.cantidadOriginal = editingCantidad; }
+    var dup = data.codigo && items.some(function (i) { return String(i.codigo) === data.codigo && i.id !== editingId; });
+    var go = function () {
+      var editando = !!editingId;
+      call("api_guardar", [usuario(), data], function (list) {
+        setItems(list); resetForm();
+        toast(editando ? "Artículo actualizado" : "Artículo añadido");
+        form.elements.nombre.focus();
+      });
+    };
+    if (dup) ask("Ya existe un artículo con el código \"" + data.codigo + "\". ¿Guardar igualmente?", go);
+    else go();
+  }
+  $("btnCancel").addEventListener("click", resetForm);
+
+  $("tbody").addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-act]"); if (!btn || btn.disabled) return;
+    var id = btn.closest("tr").dataset.id;
+    var it = items.find(function (i) { return i.id === id; }); if (!it) return;
+    var act = btn.dataset.act;
+    if (act === "inc" || act === "dec") {
+      call("api_ajustar", [usuario(), id, act === "inc" ? 1 : -1], setItems);
+    } else if (act === "move") {
+      dialog({
+        msg: "Entrada o salida de \"" + it.nombre + "\" (actual: " + fmt(it.cantidad) + "). " +
+          "Escribe un número positivo para sumar (ej. 10) o negativo para restar (ej. -4):",
+        input: true, required: true, placeholder: "ej. 10 o -4",
+        onOk: function (v) {
+          var d = parseFloat(v.replace(",", "."));
+          if (!isFinite(d) || d === 0) { toast("Número no válido"); return; }
+          call("api_ajustar", [usuario(), id, d], function (list) {
+            setItems(list); toast(d > 0 ? "Entrada registrada" : "Salida registrada");
+          });
+        }
+      });
+    } else if (act === "del") {
+      ask("¿Eliminar \"" + it.nombre + "\" del stock?", function () {
+        call("api_eliminar", [usuario(), id], function (list) {
+          if (editingId === id) resetForm();
+          setItems(list); toast("Artículo eliminado");
+        });
+      });
+    } else if (act === "edit") {
+      editingId = id; editingCantidad = num(it.cantidad);
+      ["codigo", "nombre", "categoria", "cantidad", "unidad", "precio", "minimo", "ubicacion", "notas"]
+        .forEach(function (k) { form.elements[k].value = it[k] == null ? "" : it[k]; });
+      $("formTitle").textContent = "Editar artículo";
+      $("btnSave").textContent = "Guardar cambios";
+      $("btnCancel").classList.remove("hidden");
+      form.scrollIntoView({ behavior: "smooth" });
+      form.elements.nombre.focus();
+    }
+  });
+
+  ["search", "filterCat", "onlyLow"].forEach(function (id) { $(id).addEventListener("input", render); });
+  document.querySelectorAll("th[data-sort]").forEach(function (th) {
+    th.addEventListener("click", function () {
+      if (sortKey === th.dataset.sort) sortDir = -sortDir; else { sortKey = th.dataset.sort; sortDir = 1; }
+      render();
+    });
+  });
+  $("btnRefresh").addEventListener("click", function () { refrescar(false); });
+  $("btnUser").addEventListener("click", function () { pedirUsuario(); });
+
+  $("btnPdf").addEventListener("click", function () {
+    var list = visibleItems();
+    if (!list.length) { toast("No hay artículos para el PDF"); return; }
+    var filtros = [];
+    if ($("search").value.trim()) filtros.push("Búsqueda: \"" + $("search").value.trim() + "\"");
+    if ($("filterCat").value) filtros.push("Categoría: " + $("filterCat").value);
+    if ($("onlyLow").checked) filtros.push("Solo stock bajo");
+    toast("Generando PDF…");
+    call("api_pdf", [usuario(), list.map(function (i) { return i.id; }), filtros.join(" · ")], function (r) {
+      dialog({ msg: "PDF listo: " + r.nombre + ". También queda guardado en tu Google Drive, carpeta \"Informes de stock\".",
+        link: r.url, okText: "Cerrar", noCancel: true });
+    });
+  });
+
+  $("btnImport").addEventListener("click", function () { $("fileImport").click(); });
+  $("fileImport").addEventListener("change", function () {
+    var f = this.files[0]; if (!f) return;
+    var r = new FileReader();
+    r.onload = function () {
+      try {
+        var data = JSON.parse(r.result);
+        var list = Array.isArray(data) ? data : data.items;
+        if (!Array.isArray(list)) throw new Error("formato no válido");
+        ask("Se añadirán " + list.length + " artículos de la copia al stock compartido. ¿Continuar?", function () {
+          call("api_importar", [usuario(), list], function (res) { setItems(res); toast("Copia importada"); });
+        });
+      } catch (e) { dialog({ msg: "No se pudo leer la copia: " + e.message, noCancel: true }); }
+    };
+    r.readAsText(f);
+    this.value = "";
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && modalOpen() && !$("modalNo").classList.contains("hidden")) $("modalNo").click();
+  });
+
+  // Actualización automática para ver los cambios de otras personas.
+  setInterval(function () {
+    if (!document.hidden && !busy && !modalOpen() && loaded) refrescar(true);
+  }, 30000);
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && !busy && loaded) refrescar(true);
+  });
+
+  // ---------- Inicio ----------
+  render();
+  google.script.run
+    .withSuccessHandler(function (c) {
+      cfg = c;
+      $("empresa").textContent = c.empresa;
+      var seguir = function () {
+        $("userName").textContent = usuario();
+        if (cfg.requiereClave && !clave()) pedirClave(false, function () { refrescar(false); });
+        else refrescar(false);
+      };
+      if (!usuario()) pedirUsuario(seguir); else seguir();
+    })
+    .withFailureHandler(function (e) {
+      setStatus("err", "Sin conexión");
+      $("empty").textContent = "No se pudo conectar con la hoja: " + ((e && e.message) || e);
+    })
+    .api_config();
+})();
+</script>
+</body>
+</html>
