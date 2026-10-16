@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestor de Stock</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #1d2330; --muted: #6b7280;
+    --border: #e2e5ea; --accent: #2563eb; --accent-text: #ffffff;
+    --danger: #dc2626; --ok: #16a34a; --warn: #d97706;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151c; --card: #1b1f29; --text: #e6e8ee; --muted: #9aa1ae;
+      --border: #2c3240; --accent: #4f8bff; --accent-text: #ffffff;
+      --danger: #f05252; --ok: #34c472; --warn: #f0a33a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    justify-content: space-between; max-width: 1100px; margin: 0 auto; }
+  h1 { margin: 0; font-size: 22px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 0 16px 40px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; margin-bottom: 16px; }
+  .card h2 { margin: 0 0 12px; font-size: 16px; }
+  .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  input, select, textarea { font: inherit; color: var(--text); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; width: 100%; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  button { font: inherit; cursor: pointer; border-radius: 7px; padding: 8px 14px;
+    border: 1px solid var(--border); background: var(--card); color: var(--text); }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button.danger { color: var(--danger); }
+  button.small { padding: 4px 9px; font-size: 13px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .toolbar input { flex: 1 1 220px; width: auto; }
+  .toolbar select { width: auto; }
+  .stats { display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 12px; color: var(--muted); }
+  .stats b { color: var(--text); font-size: 18px; display: block; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted);
+    cursor: pointer; user-select: none; white-space: nowrap; }
+  td.num, th.num { text-align: right; }
+  .qty { display: inline-flex; align-items: center; gap: 6px; }
+  .low { color: var(--warn); font-weight: 600; }
+  .zero { color: var(--danger); font-weight: 600; }
+  .row-actions { white-space: nowrap; text-align: right; }
+  .empty { text-align: center; color: var(--muted); padding: 30px 0; }
+  .hidden { display: none; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 8px;
+    opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  @media (max-width: 640px) {
+    thead { display: none; }
+    tr { display: block; border-bottom: 1px solid var(--border); padding: 8px 0; }
+    td { display: flex; justify-content: space-between; border: 0; padding: 4px 0; }
+    td::before { content: attr(data-label); color: var(--muted); font-size: 13px; }
+    td.num { text-align: right; }
+    .row-actions { justify-content: flex-end; gap: 6px; }
+    .row-actions::before { content: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Gestor de Stock</h1>
+  <div class="actions" style="margin:0">
+    <button class="primary" id="btnPdf">Generar PDF</button>
+    <button id="btnExport">Copia de seguridad</button>
+    <button id="btnImport">Restaurar copia</button>
+    <input type="file" id="fileImport" accept=".json,application/json" class="hidden">
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <h2 id="formTitle">Nuevo artículo</h2>
+    <form id="form" autocomplete="off">
+      <div class="grid">
+        <label>Código / SKU <input name="codigo" maxlength="40"></label>
+        <label>Nombre * <input name="nombre" required maxlength="120"></label>
+        <label>Categoría <input name="categoria" list="categorias" maxlength="60"></label>
+        <label>Cantidad * <input name="cantidad" type="number" min="0" step="any" required value="0"></label>
+        <label>Unidad <input name="unidad" list="unidades" maxlength="20" placeholder="uds, kg, cajas…"></label>
+        <label>Precio unitario (€) <input name="precio" type="number" min="0" step="0.01" placeholder="0,00"></label>
+        <label>Stock mínimo <input name="minimo" type="number" min="0" step="any" placeholder="Aviso si baja de…"></label>
+        <label>Ubicación <input name="ubicacion" maxlength="60"></label>
+      </div>
+      <label style="margin-top:10px">Notas <textarea name="notas" rows="2" maxlength="500"></textarea></label>
+      <div class="actions">
+        <button type="submit" class="primary" id="btnSave">Añadir artículo</button>
+        <button type="button" id="btnCancel" class="hidden">Cancelar edición</button>
+      </div>
+    </form>
+    <datalist id="categorias"></datalist>
+    <datalist id="unidades"><option value="uds"><option value="kg"><option value="g"><option value="l"><option value="m"><option value="cajas"><option value="paquetes"></datalist>
+  </section>
+
+  <section class="card">
+    <h2>Inventario</h2>
+    <div class="stats">
+      <div><b id="stArticulos">0</b>artículos</div>
+      <div><b id="stUnidades">0</b>unidades totales</div>
+      <div><b id="stValor">0,00 €</b>valor total</div>
+      <div><b id="stBajo">0</b>con stock bajo</div>
+    </div>
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Buscar por nombre, código, categoría o ubicación…">
+      <select id="filterCat"><option value="">Todas las categorías</option></select>
+      <label style="flex-direction:row;align-items:center;gap:6px;color:var(--text);white-space:nowrap">
+        <input type="checkbox" id="onlyLow" style="width:auto"> Solo stock bajo
+      </label>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th data-sort="codigo">Código</th>
+          <th data-sort="nombre">Nombre</th>
+          <th data-sort="categoria">Categoría</th>
+          <th data-sort="ubicacion">Ubicación</th>
+          <th data-sort="cantidad" class="num">Cantidad</th>
+          <th data-sort="precio" class="num">Precio</th>
+          <th data-sort="valor" class="num">Valor</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div id="empty" class="empty">Todavía no hay artículos. Añade el primero con el formulario de arriba.</div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>/*JSPDF*/</script>
+<script>/*AUTOTABLE*/</script>
+<script>
+(function () {
+  "use strict";
+  var KEY = "stock-app-v1";
+  var items = load();
+  var editingId = null;
+  var sortKey = "nombre", sortDir = 1;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var form = $("form");
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; }
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(items)); }
+    catch (e) { toast("No se pudo guardar: " + e.message); }
+  }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function num(v) { var n = parseFloat(v); return isFinite(n) ? n : 0; }
+  function money(n) { return num(n).toLocaleString("es-ES", { style: "currency", currency: "EUR" }); }
+  function fmt(n) { return num(n).toLocaleString("es-ES", { maximumFractionDigits: 3 }); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function isLow(it) { return it.minimo !== "" && it.minimo != null && num(it.cantidad) <= num(it.minimo); }
+  function toast(msg) {
+    var t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove("show"); }, 2200);
+  }
+
+  function visibleItems() {
+    var q = $("search").value.trim().toLowerCase();
+    var cat = $("filterCat").value;
+    var onlyLow = $("onlyLow").checked;
+    return items.filter(function (it) {
+      if (cat && it.categoria !== cat) return false;
+      if (onlyLow && !isLow(it)) return false;
+      if (!q) return true;
+      return [it.codigo, it.nombre, it.categoria, it.ubicacion, it.notas]
+        .join(" ").toLowerCase().indexOf(q) !== -1;
+    }).sort(function (a, b) {
+      var va, vb;
+      if (sortKey === "valor") { va = num(a.cantidad) * num(a.precio); vb = num(b.cantidad) * num(b.precio); }
+      else if (sortKey === "cantidad" || sortKey === "precio") { va = num(a[sortKey]); vb = num(b[sortKey]); }
+      else { return sortDir * String(a[sortKey] || "").localeCompare(String(b[sortKey] || ""), "es", { numeric: true }); }
+      return sortDir * (va - vb);
+    });
+  }
+
+  function render() {
+    var list = visibleItems();
+    var tb = $("tbody");
+    tb.innerHTML = list.map(function (it) {
+      var cls = num(it.cantidad) <= 0 ? "zero" : (isLow(it) ? "low" : "");
+      return '<tr data-id="' + it.id + '">' +
+        '<td data-label="Código">' + esc(it.codigo) + '</td>' +
+        '<td data-label="Nombre"><b>' + esc(it.nombre) + '</b>' +
+          (it.notas ? '<div style="color:var(--muted);font-size:12px">' + esc(it.notas) + '</div>' : '') + '</td>' +
+        '<td data-label="Categoría">' + esc(it.categoria) + '</td>' +
+        '<td data-label="Ubicación">' + esc(it.ubicacion) + '</td>' +
+        '<td data-label="Cantidad" class="num"><span class="qty">' +
+          '<button class="small" data-act="dec" title="Restar 1">−</button>' +
+          '<span class="' + cls + '">' + fmt(it.cantidad) + ' ' + esc(it.unidad) + '</span>' +
+          '<button class="small" data-act="inc" title="Sumar 1">+</button></span></td>' +
+        '<td data-label="Precio" class="num">' + (it.precio !== "" ? money(it.precio) : "") + '</td>' +
+        '<td data-label="Valor" class="num">' + money(num(it.cantidad) * num(it.precio)) + '</td>' +
+        '<td class="row-actions">' +
+          '<button class="small" data-act="edit">Editar</button> ' +
+          '<button class="small danger" data-act="del">Eliminar</button></td>' +
+        '</tr>';
+    }).join("");
+    $("empty").classList.toggle("hidden", list.length > 0);
+    $("empty").textContent = items.length
+      ? "Ningún artículo coincide con la búsqueda."
+      : "Todavía no hay artículos. Añade el primero con el formulario de arriba.";
+
+    var totalU = 0, totalV = 0, low = 0;
+    items.forEach(function (it) {
+      totalU += num(it.cantidad); totalV += num(it.cantidad) * num(it.precio); if (isLow(it)) low++;
+    });
+    $("stArticulos").textContent = items.length;
+    $("stUnidades").textContent = fmt(totalU);
+    $("stValor").textContent = money(totalV);
+    $("stBajo").textContent = low;
+
+    var cats = Array.from(new Set(items.map(function (i) { return i.categoria; }).filter(Boolean))).sort();
+    var sel = $("filterCat"), cur = sel.value;
+    sel.innerHTML = '<option value="">Todas las categorías</option>' +
+      cats.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join("");
+    sel.value = cats.indexOf(cur) !== -1 ? cur : "";
+    $("categorias").innerHTML = cats.map(function (c) { return '<option value="' + esc(c) + '">'; }).join("");
+
+    document.querySelectorAll("th[data-sort]").forEach(function (th) {
+      var base = th.textContent.replace(/ [▲▼]$/, "");
+      th.textContent = base + (th.dataset.sort === sortKey ? (sortDir > 0 ? " ▲" : " ▼") : "");
+    });
+  }
+
+  function resetForm() {
+    form.reset(); editingId = null;
+    $("formTitle").textContent = "Nuevo artículo";
+    $("btnSave").textContent = "Añadir artículo";
+    $("btnCancel").classList.add("hidden");
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var fd = new FormData(form), data = {};
+    ["codigo", "nombre", "categoria", "cantidad", "unidad", "precio", "minimo", "ubicacion", "notas"]
+      .forEach(function (k) { data[k] = String(fd.get(k) || "").trim(); });
+    if (!data.nombre) return;
+    data.cantidad = num(data.cantidad);
+    data.precio = data.precio === "" ? "" : num(data.precio);
+    data.minimo = data.minimo === "" ? "" : num(data.minimo);
+    if (data.codigo && items.some(function (i) { return i.codigo === data.codigo && i.id !== editingId; })) {
+      if (!confirm("Ya existe un artículo con el código \"" + data.codigo + "\". ¿Guardar igualmente?")) return;
+    }
+    if (editingId) {
+      var it = items.find(function (i) { return i.id === editingId; });
+      Object.assign(it, data, { actualizado: new Date().toISOString() });
+      toast("Artículo actualizado");
+    } else {
+      data.id = uid(); data.creado = data.actualizado = new Date().toISOString();
+      items.push(data);
+      toast("Artículo añadido");
+    }
+    save(); resetForm(); render();
+    form.elements.nombre.focus();
+  });
+  $("btnCancel").addEventListener("click", resetForm);
+
+  $("tbody").addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-act]"); if (!btn) return;
+    var id = btn.closest("tr").dataset.id;
+    var it = items.find(function (i) { return i.id === id; }); if (!it) return;
+    var act = btn.dataset.act;
+    if (act === "inc" || act === "dec") {
+      it.cantidad = Math.max(0, num(it.cantidad) + (act === "inc" ? 1 : -1));
+      it.actualizado = new Date().toISOString();
+      save(); render();
+    } else if (act === "del") {
+      if (confirm("¿Eliminar \"" + it.nombre + "\" del stock?")) {
+        items = items.filter(function (i) { return i.id !== id; });
+        if (editingId === id) resetForm();
+        save(); render(); toast("Artículo eliminado");
+      }
+    } else if (act === "edit") {
+      editingId = id;
+      ["codigo", "nombre", "categoria", "cantidad", "unidad", "precio", "minimo", "ubicacion", "notas"]
+        .forEach(function (k) { form.elements[k].value = it[k] == null ? "" : it[k]; });
+      $("formTitle").textContent = "Editar artículo";
+      $("btnSave").textContent = "Guardar cambios";
+      $("btnCancel").classList.remove("hidden");
+      form.scrollIntoView({ behavior: "smooth" });
+      form.elements.nombre.focus();
+    }
+  });
+
+  ["search", "filterCat", "onlyLow"].forEach(function (id) {
+    $(id).addEventListener("input", render);
+  });
+  document.querySelectorAll("th[data-sort]").forEach(function (th) {
+    th.addEventListener("click", function () {
+      if (sortKey === th.dataset.sort) sortDir = -sortDir; else { sortKey = th.dataset.sort; sortDir = 1; }
+      render();
+    });
+  });
+
+  // ---------- PDF ----------
+  $("btnPdf").addEventListener("click", function () {
+    var list = visibleItems();
+    if (!list.length) { toast("No hay artículos para exportar"); return; }
+    var jsPDF = window.jspdf && window.jspdf.jsPDF;
+    if (!jsPDF) { window.print(); return; }
+    var doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    var now = new Date();
+    var fecha = now.toLocaleDateString("es-ES") + " " + now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+    var filtrado = list.length !== items.length;
+
+    doc.setFontSize(18); doc.text("Informe de stock", 14, 16);
+    doc.setFontSize(10); doc.setTextColor(100);
+    doc.text("Generado: " + fecha + (filtrado ? "   ·   Listado filtrado (" + list.length + " de " + items.length + " artículos)" : ""), 14, 23);
+
+    var totalU = 0, totalV = 0;
+    var body = list.map(function (it) {
+      var v = num(it.cantidad) * num(it.precio);
+      totalU += num(it.cantidad); totalV += v;
+      return [it.codigo || "", it.nombre, it.categoria || "", it.ubicacion || "",
+        fmt(it.cantidad) + (it.unidad ? " " + it.unidad : ""),
+        it.minimo !== "" && it.minimo != null ? fmt(it.minimo) : "",
+        it.precio !== "" ? money(it.precio) : "", money(v)];
+    });
+
+    doc.autoTable({
+      startY: 28,
+      head: [["Código", "Nombre", "Categoría", "Ubicación", "Cantidad", "Mínimo", "Precio unit.", "Valor"]],
+      body: body,
+      foot: [["", "TOTAL (" + list.length + " artículos)", "", "", fmt(totalU), "", "", money(totalV)]],
+      theme: "striped",
+      styles: { fontSize: 9, cellPadding: 2 },
+      headStyles: { fillColor: [37, 99, 235] },
+      footStyles: { fillColor: [230, 234, 242], textColor: 20, fontStyle: "bold" },
+      columnStyles: { 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" }, 7: { halign: "right" } },
+      didParseCell: function (d) {
+        if (d.column.index >= 4) d.cell.styles.halign = "right";
+        if (d.section === "body" && d.column.index === 4) {
+          var it = list[d.row.index];
+          if (num(it.cantidad) <= 0) d.cell.styles.textColor = [220, 38, 38];
+          else if (isLow(it)) d.cell.styles.textColor = [217, 119, 6];
+        }
+      },
+      didDrawPage: function () {
+        var p = doc.internal.getNumberOfPages();
+        doc.setFontSize(8); doc.setTextColor(140);
+        doc.text("Página " + p, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 8, { align: "right" });
+      }
+    });
+
+    var stamp = now.toISOString().slice(0, 10);
+    doc.save("stock-" + stamp + ".pdf");
+    toast("PDF generado");
+  });
+
+  // ---------- Copia de seguridad ----------
+  $("btnExport").addEventListener("click", function () {
+    var blob = new Blob([JSON.stringify({ app: "stock-app", version: 1, fecha: new Date().toISOString(), items: items }, null, 2)],
+      { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "stock-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  });
+  $("btnImport").addEventListener("click", function () { $("fileImport").click(); });
+  $("fileImport").addEventListener("change", function () {
+    var f = this.files[0]; if (!f) return;
+    var r = new FileReader();
+    r.onload = function () {
+      try {
+        var data = JSON.parse(r.result);
+        var list = Array.isArray(data) ? data : data.items;
+        if (!Array.isArray(list)) throw new Error("formato no válido");
+        if (!confirm("Esto reemplazará los " + items.length + " artículos actuales por los " + list.length + " de la copia. ¿Continuar?")) return;
+        items = list.filter(function (i) { return i && i.nombre; }).map(function (i) { if (!i.id) i.id = uid(); return i; });
+        save(); resetForm(); render(); toast("Copia restaurada");
+      } catch (e) { alert("No se pudo leer la copia: " + e.message); }
+    };
+    r.readAsText(f);
+    this.value = "";
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
