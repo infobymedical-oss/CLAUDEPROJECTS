@@ -54,7 +54,15 @@
   .zero { color: var(--danger); font-weight: 600; }
   .row-actions { white-space: nowrap; text-align: right; }
   .empty { text-align: center; color: var(--muted); padding: 30px 0; }
-  .hidden { display: none; }
+  .hidden { display: none !important; }
+  .banner { max-width: 1100px; margin: 0 auto 12px; padding: 10px 14px; border-radius: 8px;
+    border: 1px solid var(--warn); color: var(--text); background: var(--card); }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex;
+    align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+  .modal { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px; max-width: 420px; width: 100%; }
+  .modal p { margin: 0 0 14px; }
+  .modal .actions { justify-content: flex-end; margin: 0; }
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
     background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 8px;
     opacity: 0; transition: opacity .2s; pointer-events: none; }
@@ -81,6 +89,10 @@
   </div>
 </header>
 
+<div id="storageWarn" class="banner hidden" style="margin:0 16px 12px">
+  ⚠️ Este programa está abierto en una vista previa que no permite guardar datos ni descargar archivos.
+  Para usarlo bien, descárgalo y ábrelo con <b>Chrome, Edge, Firefox o Safari</b>.
+</div>
 <main>
   <section class="card">
     <h2 id="formTitle">Nuevo artículo</h2>
@@ -91,13 +103,13 @@
         <label>Categoría <input name="categoria" list="categorias" maxlength="60"></label>
         <label>Cantidad * <input name="cantidad" type="number" min="0" step="any" required value="0"></label>
         <label>Unidad <input name="unidad" list="unidades" maxlength="20" placeholder="uds, kg, cajas…"></label>
-        <label>Precio unitario ($U) <input name="precio" type="number" min="0" step="0.01" placeholder="0,00"></label>
+        <label>Precio unitario ($U) <input name="precio" type="number" min="0" step="any" placeholder="0,00"></label>
         <label>Stock mínimo <input name="minimo" type="number" min="0" step="any" placeholder="Aviso si baja de…"></label>
         <label>Ubicación <input name="ubicacion" maxlength="60"></label>
       </div>
       <label style="margin-top:10px">Notas <textarea name="notas" rows="2" maxlength="500"></textarea></label>
       <div class="actions">
-        <button type="submit" class="primary" id="btnSave">Añadir artículo</button>
+        <button type="button" class="primary" id="btnSave">Añadir artículo</button>
         <button type="button" id="btnCancel" class="hidden">Cancelar edición</button>
       </div>
     </form>
@@ -140,6 +152,15 @@
 </main>
 
 <div class="toast" id="toast"></div>
+<div class="modal-bg hidden" id="modal">
+  <div class="modal" role="dialog" aria-modal="true">
+    <p id="modalMsg"></p>
+    <div class="actions">
+      <button type="button" id="modalNo">Cancelar</button>
+      <button type="button" class="primary" id="modalYes">Aceptar</button>
+    </div>
+  </div>
+</div>
 
 <script>/*JSPDF*/</script>
 <script>/*AUTOTABLE*/</script>
@@ -154,12 +175,37 @@
   var $ = function (id) { return document.getElementById(id); };
   var form = $("form");
 
+  var storageOk = (function () {
+    try { localStorage.setItem(KEY + "-test", "1"); localStorage.removeItem(KEY + "-test"); return true; }
+    catch (e) { return false; }
+  })();
+  if (!storageOk) $("storageWarn").classList.remove("hidden");
+
+  // Diálogo propio: confirm()/alert() están bloqueados en algunos visores.
+  function ask(msg, onYes, onlyOk) {
+    $("modalMsg").textContent = msg;
+    $("modalNo").classList.toggle("hidden", !!onlyOk);
+    $("modal").classList.remove("hidden");
+    $("modalYes").focus();
+    function close(ok) {
+      $("modal").classList.add("hidden");
+      $("modalYes").onclick = $("modalNo").onclick = null;
+      if (ok && onYes) onYes();
+    }
+    $("modalYes").onclick = function () { close(true); };
+    $("modalNo").onclick = function () { close(false); };
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !$("modal").classList.contains("hidden")) $("modalNo").click();
+  });
+
   function load() {
     try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; }
   }
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(items)); }
-    catch (e) { toast("No se pudo guardar: " + e.message); }
+    catch (e) { if (storageOk) toast("No se pudo guardar: " + e.message); }
   }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function num(v) { var n = parseFloat(v); return isFinite(n) ? n : 0; }
@@ -251,18 +297,30 @@
     $("btnCancel").classList.add("hidden");
   }
 
-  form.addEventListener("submit", function (e) {
-    e.preventDefault();
+  // No se usa el envío del formulario: algunos visores (vistas previas) lo bloquean.
+  form.addEventListener("submit", function (e) { e.preventDefault(); saveItem(); });
+  $("btnSave").addEventListener("click", saveItem);
+  form.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); saveItem(); }
+  });
+
+  function saveItem() {
+    if (!form.reportValidity()) return;
     var fd = new FormData(form), data = {};
     ["codigo", "nombre", "categoria", "cantidad", "unidad", "precio", "minimo", "ubicacion", "notas"]
       .forEach(function (k) { data[k] = String(fd.get(k) || "").trim(); });
-    if (!data.nombre) return;
+    if (!data.nombre) { form.elements.nombre.focus(); toast("Escribe el nombre del artículo"); return; }
     data.cantidad = num(data.cantidad);
     data.precio = data.precio === "" ? "" : num(data.precio);
     data.minimo = data.minimo === "" ? "" : num(data.minimo);
     if (data.codigo && items.some(function (i) { return i.codigo === data.codigo && i.id !== editingId; })) {
-      if (!confirm("Ya existe un artículo con el código \"" + data.codigo + "\". ¿Guardar igualmente?")) return;
+      ask("Ya existe un artículo con el código \"" + data.codigo + "\". ¿Guardar igualmente?", function () { commit(data); });
+    } else {
+      commit(data);
     }
+  }
+
+  function commit(data) {
     if (editingId) {
       var it = items.find(function (i) { return i.id === editingId; });
       Object.assign(it, data, { actualizado: new Date().toISOString() });
@@ -274,7 +332,7 @@
     }
     save(); resetForm(); render();
     form.elements.nombre.focus();
-  });
+  }
   $("btnCancel").addEventListener("click", resetForm);
 
   $("tbody").addEventListener("click", function (e) {
@@ -287,11 +345,11 @@
       it.actualizado = new Date().toISOString();
       save(); render();
     } else if (act === "del") {
-      if (confirm("¿Eliminar \"" + it.nombre + "\" del stock?")) {
+      ask("¿Eliminar \"" + it.nombre + "\" del stock?", function () {
         items = items.filter(function (i) { return i.id !== id; });
         if (editingId === id) resetForm();
         save(); render(); toast("Artículo eliminado");
-      }
+      });
     } else if (act === "edit") {
       editingId = id;
       ["codigo", "nombre", "categoria", "cantidad", "unidad", "precio", "minimo", "ubicacion", "notas"]
@@ -388,10 +446,11 @@
         var data = JSON.parse(r.result);
         var list = Array.isArray(data) ? data : data.items;
         if (!Array.isArray(list)) throw new Error("formato no válido");
-        if (!confirm("Esto reemplazará los " + items.length + " artículos actuales por los " + list.length + " de la copia. ¿Continuar?")) return;
-        items = list.filter(function (i) { return i && i.nombre; }).map(function (i) { if (!i.id) i.id = uid(); return i; });
-        save(); resetForm(); render(); toast("Copia restaurada");
-      } catch (e) { alert("No se pudo leer la copia: " + e.message); }
+        ask("Esto reemplazará los " + items.length + " artículos actuales por los " + list.length + " de la copia. ¿Continuar?", function () {
+          items = list.filter(function (i) { return i && i.nombre; }).map(function (i) { if (!i.id) i.id = uid(); return i; });
+          save(); resetForm(); render(); toast("Copia restaurada");
+        });
+      } catch (e) { ask("No se pudo leer la copia: " + e.message, null, true); }
     };
     r.readAsText(f);
     this.value = "";
